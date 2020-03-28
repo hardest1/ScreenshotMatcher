@@ -28,13 +28,14 @@ const heartbeat = async () => {
 
     try {
       let res = await fetch('/get-url');
-      serviceURL = await res.text()
+      if(res.ok){
+        serviceURL = await res.text()
+        $('#qrcode').html("");
+        $('#qrcode').qrcode({ width: 200, height: 200, text: serviceURL });
+      }
     } catch (error) {
       serviceURL = ""
     }
-    console.log(serviceURL);
-    $('#qrcode').html("");
-    $('#qrcode').qrcode({ width: 200, height: 200, text: serviceURL });
 
     try {
       let res = await fetch('/result-list');
