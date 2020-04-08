@@ -91,9 +91,11 @@ stopServerEl.addEventListener('click', stopServer)
 
 formElem.onsubmit = async (e) => {
   e.preventDefault();
+  const data = new FormData(formElem)
+  console.log(data)
   let res = await fetch('/match', {
     method: 'POST',
-    body: new FormData(formElem)
+    body: data
   });
   console.log(await res.text());
 };
