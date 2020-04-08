@@ -60,10 +60,14 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
     Ptr<SURF> detector = SURF::create( minHessian );
     detector->setUpright(false); // might be faster when set to true
 
+    cout << "Set SURF detector upright" << endl;
+
     std::vector<KeyPoint> keypoints_object, keypoints_scene;
     Mat descriptors_object, descriptors_scene;
     detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
     detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
+
+    cout << "Detected keypoints" << endl;
 
     //-- Step 2: Matching descriptor vectors with a FLANN based matcher
 
@@ -71,6 +75,8 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
     std::vector< std::vector<DMatch> > knn_matches;
     matcher->knnMatch( descriptors_object, descriptors_scene, knn_matches, 2 );
+
+    cout << "knn Matches: " << knn_matches.size() << endl;
 
     //-- Filter matches using the Lowe's ratio test
     const float ratio_thresh = 0.75f;
@@ -82,6 +88,8 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
             good_matches.push_back(knn_matches[i][0]);
         }
     }
+
+    cout << "Filtered matches" << endl;
 
     //-- Localize the object
     std::vector<Point2f> obj;
@@ -96,6 +104,8 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
     // not sure which algorithm is better ¯\_(ツ)_/¯
     //Mat H = findHomography( obj, scene, RANSAC );
     Mat H = findHomography( obj, scene, LMEDS );
+
+    cout << "Found homography" << endl;
 
     //-- Get the corners from the image_1 ( the object to be "detected" )
     std::vector<Point2f> obj_corners(4);
@@ -130,28 +140,61 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
     line( img_scene_colored, scene_corners[3],
           scene_corners[0], Scalar( 0, 255, 0), 4 );
 
+
+    cout << "Created box around object" << endl;
+
     // crop the original screenshot to the detected area (no perspective transform!)
     Rect2d roi(minX, minY, maxX - minX, maxY - minY);
     roi = roi & Rect2d(0, 0, img_scene_colored.cols, img_scene_colored.rows);
     Mat img_crop = img_scene_colored(roi);
+
+    if(img_crop.empty())
+    {
+        cout << "No result" << endl;
+    }
+    else
+    {
+        cout << "Success" << endl;
+    }
+    
+
 
     return img_crop;
 }
 
 string match(Mat photo)
 {
+
+    cout << "Taking screenshot.. ";
+
     string screenshot_path = takeScreenshot();
+
+    cout << "Done" << endl;
+
+    cout << "Reading images.. ";
 
     Mat screen = imread( screenshot_path.c_str(), IMREAD_GRAYSCALE );
     Mat screen_unchanged = imread( screenshot_path.c_str(), IMREAD_UNCHANGED );
 
-    // DEBUG , TODO CHANGE BACK
+    cout << "Done" << endl;
+
+    cout << "-- Match algorithm --" << endl;
+
+    Mat out = matchScreenshot(photo, screen, screen_unchanged);
+
+    // DEBUG
+    /*
     Mat photo_test = imread( samples::findFile("test_data/photo.jpg"), IMREAD_GRAYSCALE );
     Mat screen_test = imread( samples::findFile("test_data/screenshot.png"), IMREAD_GRAYSCALE );
     Mat screen_unchanged_test = imread( samples::findFile("test_data/screenshot.png"), IMREAD_UNCHANGED );
-
-    // DEBUG , TODO CHANGE BACK
     Mat out = matchScreenshot(photo_test, screen_test, screen_unchanged_test);
+    */
+
+
+    if(out.empty())
+    {
+        return "no result";
+    }
 
     time_t t = time(0);
 
@@ -169,6 +212,8 @@ Mat binaryToMat(const char* data, int length)
 {
     std::vector<unsigned char> ImVec(data, data + length);
     Mat img = imdecode(ImVec, IMREAD_GRAYSCALE);
+    //Mat img2 = imdecode(ImVec, IMREAD_UNCHANGED);
+    //imwrite("test_data/cr7.jpg", img2);
     return img;
 }
 
