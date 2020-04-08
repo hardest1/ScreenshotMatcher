@@ -92,17 +92,33 @@ int main( int argc, char* argv[] )
 
   svr.Post("/match", [&](const Request &req, Response &res) {
 
+    _logger("POST /match");
+
     // Get image from posted data
     auto image_file = req.get_file_value("image_file");
+
+    _logger("Starting match algorithm");
 
     // Match algorithm, returns filename of resulting image
     string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()) );
 
-    // Set result URL
-    string result_url = "/results/" + filename;
+    _logger("Finished matching");
 
-    // Set response content
-    res.set_content(result_url.c_str(), "text/html");
+    if(filename == "no result")
+    {
+      // Set response content
+      res.set_content("no result", "text/html");
+    }
+    else
+    {
+
+      // Set result URL
+      string result_url = "/results/" + filename;
+
+      // Set response content
+      res.set_content(result_url.c_str(), "text/html");
+
+    }
 
   });
 
@@ -161,7 +177,7 @@ int main( int argc, char* argv[] )
 
   // Close syslog if daemonized
   if(startAsDaemon){ closelog(); }
-  
+
   // Exit with success
   return(EXIT_SUCCESS);
 }
