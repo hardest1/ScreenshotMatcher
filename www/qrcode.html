@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScreenshotServer Control Panel</title>
+  <!-- UIkit CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.3.7/dist/css/uikit.min.css" />
+
+</head>
+<body>
+
+  <main class="uk-container">
+
+    <br>
+    <div class="uk-card uk-card-body uk-card-default">
+        <p class="uk-text-lead uk-text-center">Use the ScreenshotMatcher-Client to scan the provided QR code:</p>
+        <div id="qrcode" class="uk-flex uk-flex-center"></div>
+        <p class="uk-text-meta uk-text-center">You can close the window after you have scanned the code.</p>
+    </div>
+
+  </main>
+
+  <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+  <!-- UIkit JS -->
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.3.7/dist/js/uikit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.3.7/dist/js/uikit-icons.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
+
+  <script>
+      fetch('/get-url')
+        .then(res => res.text())
+        .then(serviceURL => {
+            $('#qrcode').html("");
+            $('#qrcode').qrcode({ width: 200, height: 200, text: serviceURL });
+        })
+  </script>
+</body>
+</html>
