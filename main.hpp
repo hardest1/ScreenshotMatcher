@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string>
 #include <limits.h>
+#include <thread>
+
+#include <libappindicator/app-indicator.h>
+
 
 #include "httplib/httplib.h"
 #include "daemonize/daemonize.hpp"
@@ -14,6 +18,8 @@ using namespace std;
 using namespace httplib;
 
 Server svr;
+
+string serviceURL;
 
 // Server Config
 string host;

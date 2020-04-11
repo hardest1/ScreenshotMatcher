@@ -1,28 +1,68 @@
 // source: https://docs.opencv.org/3.4/d7/dff/tutorial_feature_homography.html
 // or: https://github.com/opencv/opencv/blob/3.4/samples/cpp/tutorial_code/features2D/feature_homography/SURF_FLANN_matching_homography_Demo.cpp
 
-
-
 // sources:
 // getIPAddress: https://gist.github.com/quietcricket/2521037
 // getExePath: http://www.cplusplus.com/forum/general/11104/
 // httplib: https://github.com/yhirose/cpp-httplib
 // daemonize: https://github.com/pasce/daemon-skeleton-linux-c
 
-
 #include "main.hpp"
 
+// Set tray icon
+#define TRAY_ICON "folder-pictures-symbolic"
+
+// Logger
 void _logger( string message, bool forceStdout = false )
 {
-  if(!startAsDaemon || forceStdout)
-  {
-    cout << message << endl;
-  }
-  if(startAsDaemon)
-  {
-    syslog(LOG_NOTICE, "%s", message.c_str());
-  }
+  if(!startAsDaemon || forceStdout) { cout << message << endl; }
+  else{ syslog(LOG_NOTICE, "%s", message.c_str()); }
 }
+
+// Define tray menu actions
+
+static void action_pair(GtkAction *action)
+{
+  _logger("Pairing");
+  string firefox_pairing_url = "firefox " + serviceURL + "/qrcode.html";
+  system(firefox_pairing_url.c_str());
+}
+
+static void action_results(GtkAction *action)
+{
+  _logger("Results");
+  string firefox_results_url = "firefox " + serviceURL + "/results.html";
+  system(firefox_results_url.c_str());
+}
+
+static void quit_application(GtkAction *action)
+{
+  _logger("quit");
+  svr.stop();
+  gtk_main_quit();
+}
+
+// Create menu
+
+static GtkActionEntry entries[] = {
+    {"Pair",  "device-pair",        "_Pair device",  "<control>P",
+     "Show QR code to pair device",  G_CALLBACK(action_pair)},
+    {"Results", "results-show",     "_Show Results", "<control>R",
+     "Show all results",             G_CALLBACK(action_results)},
+    {"Quit", "application-exit",    "_Quit", "<control>Q",
+     "Exit the application",         G_CALLBACK(quit_application)},
+};
+static guint n_entries = G_N_ELEMENTS(entries);
+
+static const gchar *ui_info =
+"<ui>"
+"  <popup name='IndicatorPopup'>"
+"    <menuitem action='Pair' />"
+"    <menuitem action='Results' />"
+"    <menuitem action='Quit' />"
+"  </popup>"
+"</ui>";
+
 
 string getIPAddress(){
     string ipAddress = "127.0.0.1";
@@ -83,10 +123,10 @@ int main( int argc, char* argv[] )
   // Server Config
   host = "0.0.0.0";
   port = 49049;
-  startAsDaemon = false;
+  startAsDaemon = true;
 
   string serviceIP = getIPAddress();
-  string serviceURL = "http://" + serviceIP + ":" + to_string(port);
+  serviceURL = "http://" + serviceIP + ":" + to_string(port);
   
   // ROUTING
 
@@ -100,7 +140,7 @@ int main( int argc, char* argv[] )
     _logger("Starting match algorithm");
 
     // Match algorithm, returns filename of resulting image
-    string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()) );
+    string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()), results_folder );
 
     _logger("Finished matching");
 
@@ -169,8 +209,48 @@ int main( int argc, char* argv[] )
   
   _logger("ScreenshotServer starting up");
 
+  GtkWidget*      indicator_menu;
+  GtkActionGroup* action_group;
+  GtkUIManager*   uim;
+  AppIndicator* indicator;
+  GError* error = NULL;
+
+  gtk_init(&argc, &argv);
+
+  /* Menus */
+  action_group = gtk_action_group_new("AppActions");
+  gtk_action_group_add_actions(action_group, entries, n_entries,
+                                NULL);
+
+  uim = gtk_ui_manager_new();
+  gtk_ui_manager_insert_action_group(uim, action_group, 0);
+
+  if (!gtk_ui_manager_add_ui_from_string(uim, ui_info, -1, &error)) {
+      g_message("Failed to build menus: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+
+  /* Indicator */
+  indicator = app_indicator_new("screenshotmatcher-tray",
+                                TRAY_ICON,
+                                APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+
+  indicator_menu = gtk_ui_manager_get_widget(uim, "/ui/IndicatorPopup");
+
+  app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
+  app_indicator_set_attention_icon(indicator, "indicator-messages-new");
+
+  app_indicator_set_menu(indicator, GTK_MENU(indicator_menu));
+
   // Start HTTP server
-  svr.listen(host.c_str(), port);
+  std::thread t1([]{svr.listen(host.c_str(), port);});
+  
+
+  gtk_main();
+
+  t1.join();
+
 
   // Finish up
   _logger("ScreenshotServer closing.. bye bye");
