@@ -20,4 +20,4 @@ struct ScreenShot;
 Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged);
 Mat binaryToMat(const char* data, int length);
 string takeScreenshot();
-string match(Mat photo);
+string match(Mat photo, string result_dir);

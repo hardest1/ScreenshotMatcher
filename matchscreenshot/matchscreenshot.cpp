@@ -129,7 +129,7 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
         if(scene_corners[i].y < minY) minY = scene_corners[i].y; 
         if(scene_corners[i].y > maxY) maxY = scene_corners[i].y; 
     }
-
+    /*
     // draw a border around the detected area
     line( img_scene_colored, scene_corners[0],
           scene_corners[1], Scalar(0, 255, 0), 4 );
@@ -139,7 +139,7 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
           scene_corners[3], Scalar( 0, 255, 0), 4 );
     line( img_scene_colored, scene_corners[3],
           scene_corners[0], Scalar( 0, 255, 0), 4 );
-
+    */
 
     cout << "Created box around object" << endl;
 
@@ -162,7 +162,7 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged)
     return img_crop;
 }
 
-string match(Mat photo)
+string match(Mat photo, string result_dir)
 {
 
     cout << "Taking screenshot.. ";
@@ -191,6 +191,7 @@ string match(Mat photo)
     */
 
 
+
     if(out.empty())
     {
         return "no result";
@@ -200,7 +201,7 @@ string match(Mat photo)
 
     string filename = to_string(t) + ".jpg";
 
-    string out_path = "www/results/" + filename;
+    string out_path = result_dir + "/" + filename;
 
     imwrite( out_path, out);
     
