@@ -9,61 +9,30 @@
 
 #include "main.hpp"
 
-// Set tray icon
-#define TRAY_ICON "folder-pictures-symbolic"
+// ## SECTION Utility functions
 
-// Logger
-void _logger( string message, bool forceStdout = false )
+// Open file (like double click in explorer)
+void openFile(string filename)
 {
-  if(!startAsDaemon || forceStdout) { cout << message << endl; }
-  else{ syslog(LOG_NOTICE, "%s", message.c_str()); }
+  string sh = "xdg-open " + filename;
+  system(sh.c_str());
 }
 
-// Define tray menu actions
-
-static void action_pair(GtkAction *action)
+// Create QR code, save as svg and show image file
+void createAndShowQrCode(const char *text)
 {
-  _logger("Pairing");
-  string firefox_pairing_url = "firefox " + serviceURL + "/qrcode.html";
-  system(firefox_pairing_url.c_str());
+  const QrCode::Ecc errCorLvl = QrCode::Ecc::HIGH;  // Error correction level
+	const QrCode qr = QrCode::encodeText(text, errCorLvl);
+	const string svg = qr.toSvgString(3);
+  time_t t = time(0);
+  string filename = "/tmp/qrcode-" + to_string(t) + ".svg";
+  std::ofstream file(filename);
+  file << svg;
+  file.close();
+  openFile(filename);
 }
 
-static void action_results(GtkAction *action)
-{
-  _logger("Results");
-  string firefox_results_url = "firefox " + serviceURL + "/results.html";
-  system(firefox_results_url.c_str());
-}
-
-static void quit_application(GtkAction *action)
-{
-  _logger("quit");
-  svr.stop();
-  gtk_main_quit();
-}
-
-// Create menu
-
-static GtkActionEntry entries[] = {
-    {"Pair",  "device-pair",        "_Pair device",  "<control>P",
-     "Show QR code to pair device",  G_CALLBACK(action_pair)},
-    {"Results", "results-show",     "_Show Results", "<control>R",
-     "Show all results",             G_CALLBACK(action_results)},
-    {"Quit", "application-exit",    "_Quit", "<control>Q",
-     "Exit the application",         G_CALLBACK(quit_application)},
-};
-static guint n_entries = G_N_ELEMENTS(entries);
-
-static const gchar *ui_info =
-"<ui>"
-"  <popup name='IndicatorPopup'>"
-"    <menuitem action='Pair' />"
-"    <menuitem action='Results' />"
-"    <menuitem action='Quit' />"
-"  </popup>"
-"</ui>";
-
-
+// Get current ip address
 string getIPAddress(){
     string ipAddress = "127.0.0.1";
     struct ifaddrs *interfaces = NULL;
@@ -88,6 +57,7 @@ string getIPAddress(){
     return ipAddress;
 }
 
+// get script path
 string getexepath()
 {
   char result[ PATH_MAX ];
@@ -112,91 +82,79 @@ string getexepath()
   return dirPath;
 }
 
+// ## END SECTION Utility functions
+
+// ---------------------------------------
+
+// ## SECTION Tray configuration
+
+// Set tray icon
+#define TRAY_ICON "folder-pictures-symbolic"
+
+// Define tray menu actions
+
+static void action_pair(GtkAction *action)
+{
+  _logger("Pairing");
+  createAndShowQrCode(serviceURL.c_str());
+}
+
+static void action_results(GtkAction *action)
+{
+  _logger("Results");
+  openFile(results_folder);
+}
+
+static void quit_application(GtkAction *action)
+{
+  _logger("Quit");
+  stopServer();
+  gtk_main_quit();
+}
+
+// Define tray menu
+
+static GtkActionEntry entries[] = {
+    {"Pair",  "device-pair",        "_Pair device",  "<control>P",
+     "Show QR code to pair device",  G_CALLBACK(action_pair)},
+    {"Results", "results-show",     "_Show Results", "<control>R",
+     "Show all results",             G_CALLBACK(action_results)},
+    {"Quit", "application-exit",    "_Quit", "<control>Q",
+     "Exit the application",         G_CALLBACK(quit_application)},
+};
+
+static guint n_entries = G_N_ELEMENTS(entries);
+
+static const gchar *ui_info =
+"<ui>"
+"  <popup name='IndicatorPopup'>"
+"    <menuitem action='Pair' />"
+"    <menuitem action='Results' />"
+"    <menuitem action='Quit' />"
+"  </popup>"
+"</ui>";
+
+// ## END SECTION Tray configuration
+
+// ---------------------------------------
+
+// ## MAIN SCRIPT
+
 int main( int argc, char* argv[] )
 {
-
-  // Get Script Dir
-  string scriptDir = getexepath();
-  string public_folder = scriptDir + "/www";
-  string results_folder = scriptDir + "/www/results";
-
   // Server Config
   host = "0.0.0.0";
   port = 49049;
   startAsDaemon = true;
 
+  // Get Script Dir
+  string scriptDir = getexepath();
+  string public_folder = scriptDir + "/www";
+  results_folder = scriptDir + "/www/results";
+
   string serviceIP = getIPAddress();
   serviceURL = "http://" + serviceIP + ":" + to_string(port);
   
-  // ROUTING
-
-  svr.Post("/match", [&](const Request &req, Response &res) {
-
-    _logger("POST /match");
-
-    // Get image from posted data
-    auto image_file = req.get_file_value("image_file");
-
-    _logger("Starting match algorithm");
-
-    // Match algorithm, returns filename of resulting image
-    string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()), results_folder );
-
-    _logger("Finished matching");
-
-    if(filename == "no result")
-    {
-      // Set response content
-      res.set_content("no result", "text/html");
-    }
-    else
-    {
-
-      // Set result URL
-      string result_url = "/results/" + filename;
-
-      // Set response content
-      res.set_content(result_url.c_str(), "text/html");
-
-    }
-
-  });
-
-  // Result list
-  svr.Get("/result-list", [&](const Request& req, Response& res) {
-    DIR *dir;
-    struct dirent *ent;
-    string result_list_str = "";
-    // Return a list of all files in results folder
-    if ((dir = opendir (results_folder.c_str())) != NULL) {
-      while ((ent = readdir (dir)) != NULL) {
-        result_list_str += ent->d_name;
-        result_list_str += "\n";
-      }
-      closedir (dir);
-    }
-    res.set_content(result_list_str.c_str(), "text/plain");
-  });
-
-  // Get URL
-  svr.Get("/get-url", [&](const Request& req, Response& res) {
-    res.set_content( serviceURL, "text/plain");
-  });
-
-  // Heartbeat
-  svr.Get("/heartbeat", [&](const Request& req, Response& res) {
-    res.set_content("ok", "text/plain");
-  });
-
-  // Stop server / daemon
-  svr.Get("/stop", [&](const Request& req, Response& res) {
-    svr.stop();
-    res.set_content("ok", "text/html");
-  });
-
-  // Mount www folder with html files and results
-  svr.set_mount_point("/", public_folder.c_str());
-
   // Daemonize process
   if(startAsDaemon)
   {
@@ -209,15 +167,12 @@ int main( int argc, char* argv[] )
   
   _logger("ScreenshotServer starting up");
 
-  GtkWidget*      indicator_menu;
-  GtkActionGroup* action_group;
-  GtkUIManager*   uim;
-  AppIndicator* indicator;
-  GError* error = NULL;
-
+  // Initialize GTK
   gtk_init(&argc, &argv);
 
-  /* Menus */
+
+  // Set up tray menu
+
   action_group = gtk_action_group_new("AppActions");
   gtk_action_group_add_actions(action_group, entries, n_entries,
                                 NULL);
@@ -225,13 +180,13 @@ int main( int argc, char* argv[] )
   uim = gtk_ui_manager_new();
   gtk_ui_manager_insert_action_group(uim, action_group, 0);
 
-  if (!gtk_ui_manager_add_ui_from_string(uim, ui_info, -1, &error)) {
-      g_message("Failed to build menus: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+  if (!gtk_ui_manager_add_ui_from_string(uim, ui_info, -1, &gerror)) {
+      g_message("Failed to build menus: %s\n", gerror->message);
+      g_error_free(gerror);
+      gerror = NULL;
   }
 
-  /* Indicator */
+  // Set up tray symbol
   indicator = app_indicator_new("screenshotmatcher-tray",
                                 TRAY_ICON,
                                 APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
@@ -242,15 +197,15 @@ int main( int argc, char* argv[] )
   app_indicator_set_attention_icon(indicator, "indicator-messages-new");
 
   app_indicator_set_menu(indicator, GTK_MENU(indicator_menu));
-
-  // Start HTTP server
-  std::thread t1([]{svr.listen(host.c_str(), port);});
   
+  // Init HTTP server
+  std::thread t_server([public_folder]{initializeServer(host, port, serviceURL, public_folder, results_folder);});
 
+  // Start tray event loop
   gtk_main();
 
-  t1.join();
-
+  // Start HTTP server thread
+  t_server.join();
 
   // Finish up
   _logger("ScreenshotServer closing.. bye bye");
