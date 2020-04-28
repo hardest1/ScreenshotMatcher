@@ -8,10 +8,36 @@ void stopServer()
   svr.stop();
 }
 
-void initializeServer(string host, int port, string serviceURL, string public_folder, string results_folder)
+void initializeServer(string host, int port, string serviceURL, string scriptDir, string public_folder, string results_folder)
 {
 
   // ROUTING
+  svr.Get("/test", [&](const Request &req, Response &res) {
+
+    if(!req.has_param("id")){
+      res.set_content("missing test id", "text/plain");
+      return;
+    }
+
+    string test_id = req.get_param_value("id");
+
+    string filename = test_SURF(stoi(test_id), scriptDir);
+
+    if(filename == "no result")
+    {
+      res.set_content("no result", "text/html");
+    }
+    else
+    {
+      // Set result URL
+      string result_url = "/results/" + filename;
+      // Set response content
+      res.set_content(result_url.c_str(), "text/html");
+    }
+    return;
+
+    res.set_content(test_id, "text/plain");
+  });
 
   svr.Post("/match", [&](const Request &req, Response &res) {
 

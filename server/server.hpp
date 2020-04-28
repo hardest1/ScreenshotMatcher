@@ -14,4 +14,4 @@ using namespace httplib;
 using namespace std;
 
 void stopServer();
-void initializeServer(string host, int port, string serviceURL, string public_folder, string results_folder);
+void initializeServer(string host, int port, string serviceURL, string scriptDir, string public_folder, string results_folder);
