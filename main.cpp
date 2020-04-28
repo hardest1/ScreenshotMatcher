@@ -145,10 +145,10 @@ int main( int argc, char* argv[] )
   // Server Config
   host = "0.0.0.0";
   port = 49049;
-  startAsDaemon = true;
+  startAsDaemon = false; // TODO change back
 
   // Get Script Dir
-  string scriptDir = getexepath();
+  scriptDir = getexepath();
   string public_folder = scriptDir + "/www";
   results_folder = scriptDir + "/www/results";
 
@@ -199,7 +199,7 @@ int main( int argc, char* argv[] )
   app_indicator_set_menu(indicator, GTK_MENU(indicator_menu));
   
   // Init HTTP server
-  std::thread t_server([public_folder]{initializeServer(host, port, serviceURL, public_folder, results_folder);});
+  std::thread t_server([public_folder]{initializeServer(host, port, serviceURL, scriptDir, public_folder, results_folder);});
 
   // Start tray event loop
   gtk_main();

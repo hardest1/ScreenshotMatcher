@@ -27,6 +27,7 @@ using std::uint8_t;
 using qrcodegen::QrCode;
 using qrcodegen::QrSegment;
 
+string scriptDir;
 string results_folder;
 string serviceURL;
 
