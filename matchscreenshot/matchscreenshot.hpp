@@ -17,8 +17,7 @@ using namespace cv::xfeatures2d;
 
 struct ScreenShot;
 
-Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged);
 Mat binaryToMat(const char* data, int length);
 string takeScreenshot();
 string match(Mat photo, string result_dir);
-string test_SURF(int image, string scriptDir);
+string test_algos(int image, int algo, int n, string scriptDir);

@@ -40,117 +40,11 @@ struct ScreenShot
     bool init;
 };
 
-Mat matchScreenshotSURF(Mat photo, Mat screenshot, Mat screenshot_unchanged)
+Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged, int algo, int _n)
 {
-
-    Mat img_object = photo; //imread( samples::findFile(path_photo), IMREAD_GRAYSCALE );
-    Mat img_scene = screenshot; //imread( samples::findFile(path_screen), IMREAD_GRAYSCALE );
-    Mat img_scene_colored = screenshot_unchanged; //imread( samples::findFile(path_screen), IMREAD_UNCHANGED );
-
-    Mat nullmat;
-
-    if ( img_object.empty() || img_scene.empty() )
-    {
-        return nullmat;
-    }
-
-    //-- Step 1: Detect the keypoints using SURF Detector, compute the descriptors
-
-    int minHessian = 400;
-    Ptr<SURF> detector = SURF::create( minHessian );
-    detector->setUpright(true); // faster
-
-    cout << "Set SURF detector upright" << endl;
-
+    DescriptorMatcher::MatcherType _matcher;
     std::vector<KeyPoint> keypoints_object, keypoints_scene;
     Mat descriptors_object, descriptors_scene;
-    detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
-    detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
-
-    cout << "Detected keypoints" << endl;
-
-    //-- Step 2: Matching descriptor vectors with a FLANN based matcher
-
-    // Since SURF is a floating-point descriptor NORM_L2 is used
-    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    std::vector< std::vector<DMatch> > knn_matches;
-    matcher->knnMatch( descriptors_object, descriptors_scene, knn_matches, 2 );
-
-    cout << "knn Matches: " << knn_matches.size() << endl;
-
-    //-- Filter matches using the Lowe's ratio test
-    const float ratio_thresh = 0.75f;
-    std::vector<DMatch> good_matches;
-    for (size_t i = 0; i < knn_matches.size(); i++)
-    {
-        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
-        {
-            good_matches.push_back(knn_matches[i][0]);
-        }
-    }
-
-    cout << "Filtered matches" << endl;
-
-    //-- Localize the object
-    std::vector<Point2f> obj;
-    std::vector<Point2f> scene;
-    for( size_t i = 0; i < good_matches.size(); i++ )
-    {
-        //-- Get the keypoints from the good matches
-        obj.push_back( keypoints_object[ good_matches[i].queryIdx ].pt );
-        scene.push_back( keypoints_scene[ good_matches[i].trainIdx ].pt );
-    }
-
-    // not sure which algorithm is better ¯\_(ツ)_/¯
-    //Mat H = findHomography( obj, scene, RANSAC );
-    Mat H = findHomography( obj, scene, LMEDS );
-
-    cout << "Found homography" << endl;
-
-    //-- Get the corners from the image_1 ( the object to be "detected" )
-    std::vector<Point2f> obj_corners(4);
-    obj_corners[0] = Point2f(0, 0);
-    obj_corners[1] = Point2f( (float)img_object.cols, 0 );
-    obj_corners[2] = Point2f( (float)img_object.cols, (float)img_object.rows );
-    obj_corners[3] = Point2f( 0, (float)img_object.rows );
-    std::vector<Point2f> scene_corners(4);
-    perspectiveTransform( obj_corners, scene_corners, H);
-
-    // find a bounding box around the detected area (used for cropping)
-    float minX = scene_corners[0].x;
-    float minY = scene_corners[0].y;
-    float maxX = scene_corners[0].x;
-    float maxY = scene_corners[0].y;
-
-    for(int i = 1; i < 4; i++)
-    {
-        if(scene_corners[i].x < minX) minX = scene_corners[i].x; 
-        if(scene_corners[i].x > maxX) maxX = scene_corners[i].x; 
-        if(scene_corners[i].y < minY) minY = scene_corners[i].y; 
-        if(scene_corners[i].y > maxY) maxY = scene_corners[i].y; 
-    }
-
-    // crop the original screenshot to the detected area (no perspective transform!)
-    Rect2d roi(minX, minY, maxX - minX, maxY - minY);
-    roi = roi & Rect2d(0, 0, img_scene_colored.cols, img_scene_colored.rows);
-    Mat img_crop = img_scene_colored(roi);
-
-    if(img_crop.empty())
-    {
-        cout << "No result" << endl;
-    }
-    else
-    {
-        cout << "Success" << endl;
-    }
-    
-
-
-    return img_crop;
-}
-
-Mat matchScreenshotTest(Mat photo, Mat screenshot, Mat screenshot_unchanged, int _n, DescriptorMatcher::MatcherType _matcher)
-{
 
     Mat img_object = photo;
     Mat img_scene = screenshot;
@@ -163,24 +57,42 @@ Mat matchScreenshotTest(Mat photo, Mat screenshot, Mat screenshot_unchanged, int
         return nullmat;
     }
 
-    // ORB
-    Ptr<ORB> detector = ORB::create( _n );
+    // 1 = ORB (default)
+    // 2 = SURF
+    // 3 = SIFT
 
-    // SURF
-    //Ptr<SURF> detector = SURF::create( _n );
-    //detector->setUpright(true);
+    switch (algo){
+        case 2:
+        {
+            // SURF
+            Ptr<SURF> detector = SURF::create( _n );
+            detector->setUpright(true);
+            _matcher = DescriptorMatcher::FLANNBASED;
+            detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
+            detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
+            break;
+        }
+        case 3:
+        {
+            // SIFT
+            Ptr<SIFT> detector = SIFT::create( _n );
+            _matcher = DescriptorMatcher::FLANNBASED;
+            detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
+            detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
+            break;
+        }
+        default:
+        {
+            // ORB
+            Ptr<ORB> detector = ORB::create( _n );
+            _matcher = DescriptorMatcher::BRUTEFORCE_HAMMING;
+            detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
+            detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
+        }
+    }
 
-    std::vector<KeyPoint> keypoints_object, keypoints_scene;
-    Mat descriptors_object, descriptors_scene;
-    detector->detectAndCompute( img_object, noArray(), keypoints_object, descriptors_object );
-    detector->detectAndCompute( img_scene, noArray(), keypoints_scene, descriptors_scene );
+    //-- Step 2: Matching descriptor vectors
 
-    cout << "Detected keypoints" << endl;
-
-    //-- Step 2: Matching descriptor vectors with a FLANN based matcher
-
-    // Since SURF is a floating-point descriptor NORM_L2 is used
-    //Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(_matcher);
     std::vector< std::vector<DMatch> > knn_matches;
     matcher->knnMatch( descriptors_object, descriptors_scene, knn_matches, 2 );
@@ -198,7 +110,7 @@ Mat matchScreenshotTest(Mat photo, Mat screenshot, Mat screenshot_unchanged, int
         }
     }
 
-    cout << "Filtered matches" << endl;
+    cout << "Filtered/Good matches: " << good_matches.size() << endl;
 
     //-- Localize the object
     std::vector<Point2f> obj;
@@ -213,8 +125,6 @@ Mat matchScreenshotTest(Mat photo, Mat screenshot, Mat screenshot_unchanged, int
     // not sure which algorithm is better ¯\_(ツ)_/¯
     Mat H = findHomography( obj, scene, RANSAC );
     //Mat H = findHomography( obj, scene, LMEDS );
-
-    cout << "Found homography" << endl;
 
     //-- Get the corners from the image_1 ( the object to be "detected" )
     std::vector<Point2f> obj_corners(4);
@@ -244,82 +154,30 @@ Mat matchScreenshotTest(Mat photo, Mat screenshot, Mat screenshot_unchanged, int
     roi = roi & Rect2d(0, 0, img_scene_colored.cols, img_scene_colored.rows);
     Mat img_crop = img_scene_colored(roi);
 
-    if(img_crop.empty())
-    {
-        cout << "No result" << endl;
-    }
-    else
-    {
-        cout << "Success" << endl;
-    }
+    cout << ( img_crop.empty() ? "No Result" : "Success" ) << endl;
+    cout << "Match algorithm END" << endl;
     
-
-
     return img_crop;
 }
 
-string test_SURF(int image, string scriptDir)
+string test_algos(int image, int algo, int n, string scriptDir)
 {
-    Mat photo, screen, screen_unchanged, out;
+    Mat out;
 
-    switch(image){
-        case 1:
-            // Object image
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo1.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot1.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot1.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotSURF(photo, screen, screen_unchanged);
-            break;
-        case 2:
-            // Text image
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo2.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot2.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot2.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotSURF(photo, screen, screen_unchanged);
-            break;
-        case 3:
-            // Highscore image
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo3.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot3.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot3.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotSURF(photo, screen, screen_unchanged);
-            break;
-        case 4:
-            // Text image with ORB
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo2.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot2.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot2.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotTest(photo, screen, screen_unchanged, 800, DescriptorMatcher::BRUTEFORCE_HAMMING);
-            break;
-        case 5:
-            // Highscore image with ORB
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo3.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot3.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot3.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotTest(photo, screen, screen_unchanged, 800, DescriptorMatcher::BRUTEFORCE_HAMMING);
-            break;
-        case 6:
-            // Object image with ORB
-            photo = imread( samples::findFile(scriptDir + "/test_data/test_suite/photo1.jpg"), IMREAD_GRAYSCALE );
-            screen = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot1.png"), IMREAD_GRAYSCALE );
-            screen_unchanged = imread( samples::findFile(scriptDir + "/test_data/test_suite/screenshot1.png"), IMREAD_UNCHANGED );
-            out = matchScreenshotTest(photo, screen, screen_unchanged, 800, DescriptorMatcher::BRUTEFORCE_HAMMING);
-            break;
-        
-        default:
-            return "no result";
-    }
+    string photoPath = "/test_data/test_suite/photo";
+    string screenPath = "/test_data/test_suite/screenshot";
 
-    if(out.empty())
-    {
-        return "no result";
-    }
+    Mat photo = imread( samples::findFile(scriptDir + photoPath + to_string(image) + ".jpg"), IMREAD_GRAYSCALE );
+    Mat screen = imread( samples::findFile(scriptDir + screenPath + to_string(image) + ".png"), IMREAD_GRAYSCALE );
+    Mat screen_unchanged = imread( samples::findFile(scriptDir + screenPath + to_string(image) + ".png"), IMREAD_UNCHANGED );
 
-    time_t t = time(0);
+    out = matchScreenshot(photo, screen, screen_unchanged, algo, n);
 
-    string filename = "test-" + to_string(t) + ".jpg";
+    if(out.empty()) { return "no result"; }
 
-    string out_path = scriptDir + "/www/results/" + filename;
+    string filename = "test-" + to_string(time(0)) + ".jpg";
+
+    string out_path = scriptDir + "/www/results/tests/" + filename;
 
     imwrite( out_path, out);
     
@@ -330,40 +188,26 @@ string test_SURF(int image, string scriptDir)
 string match(Mat photo, string result_dir)
 {
 
-    cout << "Taking screenshot.. ";
+    cout << "Taking screenshot.. " << endl;
 
     string screenshot_path = takeScreenshot();
 
-    cout << "Done" << endl;
-
-    cout << "Reading images.. ";
+    cout << "Reading images.. " << endl;
 
     Mat screen = imread( screenshot_path.c_str(), IMREAD_GRAYSCALE );
     Mat screen_unchanged = imread( screenshot_path.c_str(), IMREAD_UNCHANGED );
-
-    cout << "Done" << endl;
-
-    cout << "-- Match algorithm --" << endl;
-
-    //Mat out = matchScreenshotSURF(photo, screen, screen_unchanged);
-    Mat out = matchScreenshotTest(photo, screen, screen_unchanged, 800, DescriptorMatcher::BRUTEFORCE_HAMMING);
-
+    
     // DEBUG
-    /*
-    Mat photo_test = imread( samples::findFile("test_data/photo.jpg"), IMREAD_GRAYSCALE );
-    Mat screen_test = imread( samples::findFile("test_data/screenshot.png"), IMREAD_GRAYSCALE );
-    Mat screen_unchanged_test = imread( samples::findFile("test_data/screenshot.png"), IMREAD_UNCHANGED );
-    Mat out = matchScreenshot(photo_test, screen_test, screen_unchanged_test);
-    */
+    // Save screenshot to /tmp for debugging/testing
+    // imwrite("/tmp/ffff.png", screen_unchanged); 
 
-    if(out.empty())
-    {
-        return "no result";
-    }
+    cout << "Match algorithm START" << endl;
 
-    time_t t = time(0);
+    Mat out = matchScreenshot(photo, screen, screen_unchanged, 1, 800);
 
-    string filename = to_string(t) + ".jpg";
+    if(out.empty()) { return "no result"; }
+
+    string filename = to_string(time(0)) + ".jpg";
 
     string out_path = result_dir + "/" + filename;
 
@@ -377,8 +221,11 @@ Mat binaryToMat(const char* data, int length)
 {
     std::vector<unsigned char> ImVec(data, data + length);
     Mat img = imdecode(ImVec, IMREAD_GRAYSCALE);
-    //Mat img2 = imdecode(ImVec, IMREAD_UNCHANGED);
-    //imwrite("cr7.jpg", img2);
+
+    // Save image for debugging/testing
+    // Mat img2 = imdecode(ImVec, IMREAD_UNCHANGED);
+    // imwrite("/tmp/cr7.jpg", img2);
+
     return img;
 }
 
@@ -387,8 +234,7 @@ string takeScreenshot()
     ScreenShot screen(0);
     Mat img;
     screen(img);
-    time_t t = time(0);
-    string filename = "/tmp/screenshot-" + to_string(t) + ".jpg";
+    string filename = "/tmp/screenshot-" + to_string(time(0)) + ".jpg";
     imwrite(filename.c_str(), img);
     return filename;
 }
