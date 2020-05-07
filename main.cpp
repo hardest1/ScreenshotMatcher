@@ -6,6 +6,7 @@
 // getExePath: http://www.cplusplus.com/forum/general/11104/
 // httplib: https://github.com/yhirose/cpp-httplib
 // daemonize: https://github.com/pasce/daemon-skeleton-linux-c
+// random_char and generate_hex: https://lowrey.me/guid-generation-in-c-11/
 
 #include "main.hpp"
 
@@ -24,8 +25,7 @@ void createAndShowQrCode(const char *text)
   const QrCode::Ecc errCorLvl = QrCode::Ecc::HIGH;  // Error correction level
 	const QrCode qr = QrCode::encodeText(text, errCorLvl);
 	const string svg = qr.toSvgString(3);
-  time_t t = time(0);
-  string filename = "/tmp/qrcode-" + to_string(t) + ".svg";
+  string filename = "/tmp/screenshotmatcher-qrcode.svg";
   std::ofstream file(filename);
   file << svg;
   file.close();

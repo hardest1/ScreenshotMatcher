@@ -175,7 +175,7 @@ string test_algos(int image, int algo, int n, string scriptDir)
 
     if(out.empty()) { return "no result"; }
 
-    string filename = "test-" + to_string(time(0)) + ".jpg";
+    string filename = "test-" + to_string(time(0)) + "-" + generate_hex(5) + ".jpg";
 
     string out_path = scriptDir + "/www/results/tests/" + filename;
 
@@ -207,7 +207,7 @@ string match(Mat photo, string result_dir)
 
     if(out.empty()) { return "no result"; }
 
-    string filename = to_string(time(0)) + ".jpg";
+    string filename = to_string(time(0)) + "-" + generate_hex(5) + ".jpg";
 
     string out_path = result_dir + "/" + filename;
 
@@ -234,8 +234,28 @@ string takeScreenshot()
     ScreenShot screen(0);
     Mat img;
     screen(img);
-    string filename = "/tmp/screenshot-" + to_string(time(0)) + ".jpg";
+    string filename = "/tmp/screenshot-" + to_string(time(0)) + "-" + generate_hex(5) + ".jpg";
     imwrite(filename.c_str(), img);
     return filename;
 }
 
+// Source for random_char and generate_hex: https://lowrey.me/guid-generation-in-c-11/
+
+unsigned int random_char() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+    return dis(gen);
+}
+
+std::string generate_hex(const unsigned int len) {
+    std::stringstream ss;
+    for (auto i = 0; i < len; i++) {
+        const auto rc = random_char();
+        std::stringstream hexstream;
+        hexstream << std::hex << rc;
+        auto hex = hexstream.str();
+        ss << (hex.length() < 2 ? '0' + hex : hex);
+    }
+    return ss.str();
+}

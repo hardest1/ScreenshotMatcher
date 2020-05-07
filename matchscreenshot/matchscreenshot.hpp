@@ -1,5 +1,8 @@
 #include <iostream>
 #include <ctime>
+#include <sstream>
+#include <random>
+#include <string>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -21,3 +24,5 @@ Mat binaryToMat(const char* data, int length);
 string takeScreenshot();
 string match(Mat photo, string result_dir);
 string test_algos(int image, int algo, int n, string scriptDir);
+unsigned int random_char();
+std::string generate_hex(const unsigned int len);
