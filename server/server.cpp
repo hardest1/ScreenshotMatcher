@@ -14,14 +14,27 @@ void initializeServer(string host, int port, string serviceURL, string scriptDir
   // ROUTING
   svr.Get("/test", [&](const Request &req, Response &res) {
 
-    if(!req.has_param("id")){
-      res.set_content("missing test id", "text/plain");
+
+    if(!req.has_param("image")){
+      res.set_content("missing image parameter", "text/plain");
       return;
     }
 
-    string test_id = req.get_param_value("id");
+    if(!req.has_param("algo")){
+      res.set_content("missing algorithm", "text/plain");
+      return;
+    }
 
-    string filename = test_SURF(stoi(test_id), scriptDir);
+    if(!req.has_param("n")){
+      res.set_content("missing n parameter", "text/plain");
+      return;
+    }
+
+    string algo_id = req.get_param_value("algo");
+    string n = req.get_param_value("n");
+    string image = req.get_param_value("image");
+
+    string filename = test_algos(stoi(image), stoi(algo_id), stoi(n), scriptDir);
 
     if(filename == "no result")
     {
@@ -30,13 +43,11 @@ void initializeServer(string host, int port, string serviceURL, string scriptDir
     else
     {
       // Set result URL
-      string result_url = "/results/" + filename;
+      string result_url = "/results/tests/" + filename;
       // Set response content
       res.set_content(result_url.c_str(), "text/html");
     }
     return;
-
-    res.set_content(test_id, "text/plain");
   });
 
   svr.Post("/match", [&](const Request &req, Response &res) {
@@ -46,12 +57,8 @@ void initializeServer(string host, int port, string serviceURL, string scriptDir
     // Get image from posted data
     auto image_file = req.get_file_value("image_file");
 
-    _logger("Starting match algorithm");
-
     // Match algorithm, returns filename of resulting image
     string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()), results_folder );
-
-    _logger("Finished matching");
 
     if(filename == "no result")
     {
