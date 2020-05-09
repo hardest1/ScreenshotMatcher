@@ -20,9 +20,8 @@ using namespace cv::xfeatures2d;
 
 struct ScreenShot;
 
-Mat binaryToMat(const char* data, int length);
-string takeScreenshot();
-string match(Mat photo, string result_dir);
+string takeScreenshot(string uid);
+tuple<string, bool, string> match(const char* data, int length, string result_dir);
 string test_algos(int image, int algo, int n, string scriptDir);
 unsigned int random_char();
 std::string generate_hex(const unsigned int len);

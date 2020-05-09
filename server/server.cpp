@@ -12,6 +12,11 @@ void initializeServer(string host, int port, string serviceURL, string scriptDir
 {
 
   // ROUTING
+
+  svr.Post("/feedback", [&](const Request &req, Response &res) {
+
+  });
+
   svr.Get("/test", [&](const Request &req, Response &res) {
 
 
@@ -56,14 +61,20 @@ void initializeServer(string host, int port, string serviceURL, string scriptDir
 
     // Get image from posted data
     auto image_file = req.get_file_value("image_file");
+    
 
     // Match algorithm, returns filename of resulting image
-    string filename = match( binaryToMat(image_file.content.c_str(), image_file.content.length()), results_folder );
+    string uid;
+    bool hasResult;
+    string filename;
+    tie(uid, hasResult, filename) = match( image_file.content.c_str(), image_file.content.length(), results_folder );
 
-    if(filename == "no result")
+    _logger(uid);
+
+    if(!hasResult)
     {
       // Set response content
-      res.set_content("no result", "text/html");
+      res.set_content(uid, "text/html");
     }
     else
     {

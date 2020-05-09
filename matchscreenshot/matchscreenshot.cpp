@@ -122,9 +122,17 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged, int alg
         scene.push_back( keypoints_scene[ good_matches[i].trainIdx ].pt );
     }
 
+
     // not sure which algorithm is better ¯\_(ツ)_/¯
     Mat H = findHomography( obj, scene, RANSAC );
     //Mat H = findHomography( obj, scene, LMEDS );
+
+
+    if ( H.empty() )
+    {   
+        cout << "No Result" << endl;
+        return nullmat;
+    }
 
     //-- Get the corners from the image_1 ( the object to be "detected" )
     std::vector<Point2f> obj_corners(4);
@@ -155,7 +163,6 @@ Mat matchScreenshot(Mat photo, Mat screenshot, Mat screenshot_unchanged, int alg
     Mat img_crop = img_scene_colored(roi);
 
     cout << ( img_crop.empty() ? "No Result" : "Success" ) << endl;
-    cout << "Match algorithm END" << endl;
     
     return img_crop;
 }
@@ -185,56 +192,53 @@ string test_algos(int image, int algo, int n, string scriptDir)
     
 }
 
-string match(Mat photo, string result_dir)
+tuple<string, bool, string> match(const char* data, int length, string result_dir)
 {
+    string uid = generate_hex(16);
+
 
     cout << "Taking screenshot.. " << endl;
 
-    string screenshot_path = takeScreenshot();
+    string screenshot_path = takeScreenshot(uid);
 
     cout << "Reading images.. " << endl;
+
+    std::vector<unsigned char> ImVec(data, data + length);
+    Mat photo = imdecode(ImVec, IMREAD_GRAYSCALE);
+    Mat photo_unchanged = imdecode(ImVec, IMREAD_UNCHANGED);
 
     Mat screen = imread( screenshot_path.c_str(), IMREAD_GRAYSCALE );
     Mat screen_unchanged = imread( screenshot_path.c_str(), IMREAD_UNCHANGED );
     
-    // DEBUG
-    // Save screenshot to /tmp for debugging/testing
-    // imwrite("/tmp/ffff.png", screen_unchanged); 
+    // Save photo for possible feedback submission
+    imwrite("/tmp/photo-" + uid + ".jpg", photo_unchanged);
 
     cout << "Match algorithm START" << endl;
 
     Mat out = matchScreenshot(photo, screen, screen_unchanged, 1, 800);
 
-    if(out.empty()) { return "no result"; }
+    cout << "Match algorithm END" << endl;
 
-    string filename = to_string(time(0)) + "-" + generate_hex(5) + ".jpg";
+    if(out.empty()) { 
+        return { uid, false, "" };
+    }
+
+    string filename = "result-" + uid + ".jpg";
 
     string out_path = result_dir + "/" + filename;
 
     imwrite( out_path, out);
-    
-    return filename;
+
+    return { uid, true, filename };
     
 }
 
-Mat binaryToMat(const char* data, int length)
-{
-    std::vector<unsigned char> ImVec(data, data + length);
-    Mat img = imdecode(ImVec, IMREAD_GRAYSCALE);
-
-    // Save image for debugging/testing
-    // Mat img2 = imdecode(ImVec, IMREAD_UNCHANGED);
-    // imwrite("/tmp/cr7.jpg", img2);
-
-    return img;
-}
-
-string takeScreenshot()
+string takeScreenshot(string uid)
 {
     ScreenShot screen(0);
     Mat img;
     screen(img);
-    string filename = "/tmp/screenshot-" + to_string(time(0)) + "-" + generate_hex(5) + ".jpg";
+    string filename = "/tmp/screenshot-" + uid + ".jpg";
     imwrite(filename.c_str(), img);
     return filename;
 }
